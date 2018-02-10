@@ -10,14 +10,10 @@ public:
 
 	static const uint8_t MAX_FX = 8;
 	static const uint8_t NUM_PARAMS = 6;
+	static const uint8_t STACK_DEPTH_MAX = 4;
 
 	enum class UI : uint32_t {
-		MENU_BEGIN = 0			,
-		FILE = MENU_BEGIN		,
-		EDIT					,
-		MENU_END				,
-
-		PARAMS_BEGIN = MENU_END,
+		PARAMS_BEGIN = 0,
 		PARAM_WAVE = PARAMS_BEGIN		,
 		PARAM_VOLUME					,
 		PARAM_VOLUME_ENV				,
@@ -26,21 +22,55 @@ public:
 		PARAM_LENGTH					,
 		PARAMS_END				,
 
-		SELECT_BEGIN = PARAMS_END		,
-		SELECT_MINUS = SELECT_BEGIN		,
-		SELECT_0,
-		SELECT_MAX = SELECT_0 + MAX_FX	,
-		SELECT_PLUS,
-		SELECT_END,
+		PATTERN_SELECT = PARAMS_END,
 
 		UI_END,
+	};
+
+	enum class Menu : uint32_t {
+		FILE,
+		EDIT,
+		MENU_MAX
+	};
+
+	enum class State : uint8_t{
+		PARAMS,
+		MENU,
+		MODAL_YES_NO,
+		LOAD,
+		STATE_MAX,
 	};
 
 	static const char * _param_strings[];
 
 	void Begin();
 
+	void SaveCurrentPattern();
+
+	void SaveAll();
+
+	// Load the pattern id from the save into _work_fx
+	void Load(int id);
+
+	uint8_t FindCurrentPatternLength();
+
+	uint8_t FindCurrentToneId();
+
+	void ResetPattern(int id);
+
+	void FixHeader(int id);
+
+	void FixAllHeaders();
+
+	void OutputPattern(const Gamebuino_Meta::Sound_FX * fx, const char * name);
+
+	void OutputFX(const Gamebuino_Meta::Sound_FX * fx);
+
 	void Update();
+
+	void UpdateMenu();
+
+	void UpdateParams();
 
 	void DrawParamEntry(uint8_t index);
 
@@ -48,15 +78,54 @@ public:
 
 	void Draw();
 
+	void DrawParams();
+
+	void DrawMenu();
+
+	void DrawMenuBar();
+
+	void DrawMenuItems();
+
+	void DrawPatternSelect();
+
 	void DrawStatusBar();
 
-	inline Gamebuino_Meta::Sound_FX * currentFx() { return &_work_sfx[0]; };
+	void Copy();
+
+	void Paste();
+
+	void DisplayNotification(const char * message, int16_t time = 60);
+
+	void DrawNotification();
+
+	inline Gamebuino_Meta::Sound_FX * currentFx() { return &(_work_sfx_ram[_current_fx]); };
+	inline Gamebuino_Meta::Sound_FX * getFx(int id) { return &(_work_sfx_ram[id]);};
+
+	inline void PushState(State state) { _state_stack[++_state_id] = state; };
+	inline void PopState() { _state_id--; };
+	inline State CurrentState() { return _state_stack[_state_id]; };
 
 private:
-	Gamebuino_Meta::Sound_FX _work_sfx[MAX_FX];
+	Gamebuino_Meta::Sound_FX _work_sfx_ram[8];
+
+	Gamebuino_Meta::Sound_FX _sfx_copy; // For copy paste
+
 
 	uint32_t _current_index;
 	uint32_t _current_fx;
+	uint32_t _pattern_length;
+	uint32_t _current_save_id;
 
+	uint8_t _current_note;
+	uint8_t _select_fx_index;
+
+	uint8_t _current_menu;
+	uint8_t _current_menu_item;
+
+	const char * _notification_string;
+	int16_t _notification_timer;
+
+	int8_t _state_id;
+	State _state_stack[STACK_DEPTH_MAX];
 };
 
