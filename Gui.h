@@ -20,7 +20,7 @@ public:
 		PARAM_PERIOD					,
 		PARAM_PERIOD_ENV				,
 		PARAM_LENGTH					,
-		PARAMS_END				,
+		PARAMS_END						,
 
 		PATTERN_SELECT = PARAMS_END,
 
@@ -62,13 +62,17 @@ public:
 
 	void FixAllHeaders();
 
-	void OutputPattern(const Gamebuino_Meta::Sound_FX * fx, const char * name);
+	void OutputPattern(const Gamebuino_Meta::Sound_FX * fx, uint16_t id);
 
 	void OutputFX(const Gamebuino_Meta::Sound_FX * fx);
 
 	void Update();
 
+	void UpdateChooseFile();
+
 	void UpdateMenu();
+
+	void OpenLoadState();
 
 	void UpdateParams();
 
@@ -77,6 +81,8 @@ public:
 	void DrawBar(int x, int y, int32_t value, int32_t min, int32_t max, bool selected);
 
 	void Draw();
+
+	void DrawChooseFile();
 
 	void DrawParams();
 
@@ -115,6 +121,7 @@ private:
 	uint32_t _current_fx;
 	uint32_t _pattern_length;
 	uint32_t _current_save_id;
+	uint32_t _temp_save_id;
 
 	uint8_t _current_note;
 	uint8_t _select_fx_index;

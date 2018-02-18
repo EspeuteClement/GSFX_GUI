@@ -46,15 +46,17 @@ template <typename T> T clamp(T value, T min, T max)
 
 const uint32_t note_table[] =
 {
-	690453,651674,615103,580591,548012,517231,488220,460819,434951,410531,387493,365738,345216,325837,307551,290288,273999,258615,244105,230405,217472,205265,193746,182872,172608,162918,153776,145144,136998,129309,122051,115201,108736,102633,96872,91435,86303,81460,76888,72573,68499,64655,61026,57601,54368,51316,48436,45718,43152,40730,38444,36286,34250,32327,30513,28800,27184,25658,24218,22859,21576,20365,19222,18143,17125,16164,15256,14400,13592,12829,12109,11429,10788,10182,9611,9072,8562,8082,7628,7200,6796,6415,6055,5715,5394,5091,4805,4536,4281,4041,3814,3600,3398,3207,3027,2857,2697,2546,2403,2268,2141,2020,1907,1800,1699,1604,1514,1429,1348,1273,1201,1134,1070,1010,954,900,849,802,757,714,
+	2697,2546,2403,2267,2141,2020,1907,1800,1699,1604,1513,1429,1349,1273,1201,1134,1070,1010,954,900,850,802,757,714,674,636,601,567,535,505,477,450,425,401,378,357,337,318,300,283,268,253,238,225,212,200,189,179,169,159,150,142,134,126,119,113,106,100,95,89,84,80,75,71,67,63,60,56,53,50,47,45,42,40,38,35,33,32,30,28,27,25,24,22,21,20,19,18,17,16,15,14,13,13,12,11,11,10,9,9,8,8,7,7,7,6,6,6 
 };
 
 Gamebuino_Meta::Sound_FX sfx_test[8] =
 {
-	{ Gamebuino_Meta::Sound_FX_Wave::SQUARE_CONTINUE, 0xFF << 16,0,22859 *256,0,1000 },
-	{ Gamebuino_Meta::Sound_FX_Wave::SQUARE, 0xFF << 16,0,(22859 *256)>>1,0,10000 },
-	{ Gamebuino_Meta::Sound_FX_Wave::SQUARE_CONTINUE, 0xFF << 16,0,22859*256,0,1000 },
+	{ Gamebuino_Meta::Sound_FX_Wave::SQUARE,1, 0xFF ,0,100,0,5 },
+	{ Gamebuino_Meta::Sound_FX_Wave::SQUARE,1, 0xFF ,0,200,0,5 },
+	{ Gamebuino_Meta::Sound_FX_Wave::SQUARE,0, 0xFF ,0,100,0,5 },
 };
+
+
 
 struct value {
 	int32_t def;
@@ -67,24 +69,24 @@ const uint8_t FPP = Gamebuino_Meta::Sound_Handler_FX::FPP;
 const value _params_values[][2] =
 {
 	{ // Volume
-		{ 0xFF << FPP , 0, 0xFF << FPP, 4 << FPP},
-		{ 0xFF << FPP , 0, 0xFF << FPP, 4 << FPP},
+		{ 0xFF , 0, 0xFF , 4 },
+		{ 0xFF  , 0, 0xFF , 4 },
 	},
 	{ // Volume_env
-		{ 0 , -1 << (FPP - 2), 1 << (FPP - 2), 64},
-		{ 0 , -1 << (FPP - 2), 1 << (FPP - 2), 64},
+		{ 0 , INT8_MIN  , INT8_MAX , 1},
+		{ 0 , INT8_MIN , INT8_MAX , 1},
 	},
 	{ // Period
-		{ 0, 0, 256 << FPP, 16 << FPP},
-		{ 11046912, 0, 162918 << 8, 256},
+		{ 0, 0, 256, 16},
+		{ 50, 0, 2697, 1},
 	},
 	{ // Period_env
-		{ 0 , -1 << (FPP - 2), 1 << (FPP - 2), 64},
-		{ 0 , -1 << (FPP - 2), 1 << (FPP - 2), 64},
+		{ 0 , INT8_MIN  , INT8_MAX , 1 },
+		{ 0 , INT8_MIN , INT8_MAX , 1 },
 	},
 };
 
-constexpr const value & getParamValue(const Gui::UI param, const Gamebuino_Meta::Sound_FX_Wave wave)
+constexpr const value & getParamValue(const Gui::UI param, const uint8_t wave)
 {
 	return _params_values[(uint32_t) param - (uint32_t) Gui::UI::PARAM_VOLUME][(uint32_t)wave & 0xff];
 }
@@ -115,8 +117,6 @@ const char *_output_wave_names[] =
 {
 	"Gamebuino_Meta::Sound_FX_Wave::NOISE",
 	"Gamebuino_Meta::Sound_FX_Wave::SQUARE",
-	"Gamebuino_Meta::Sound_FX_Wave::NOISE_CONTINUE",
-	"Gamebuino_Meta::Sound_FX_Wave::SQUARE_CONTINUE"
 };
 
 Gui::Gui()
@@ -158,11 +158,10 @@ void Gui::Begin()
 	_current_index = (uint32_t)UI::PARAM_VOLUME;
 	_select_fx_index = 0;	
 	_current_note = 58;
-
 	_state_id = -1;
 	PushState(State::PARAMS);
-
 	_notification_timer = 0;
+	_current_fx = 0;
 	//SerialUSB.begin(9600);
 }
 
@@ -189,9 +188,11 @@ void Gui::Load(int id)
 	Save newSave;
 	gb.save.get(id, &newSave, sizeof(Save));
 	_current_save_id = id;
+	_current_fx = 0;
 	if (newSave.version != SAVE_VERSION)
 	{
 		memset(&newSave, 0, sizeof(Save));
+		ResetPattern(_current_fx);
 	}
 
 	for (int i = 0; i < 8; i++)
@@ -204,7 +205,7 @@ void Gui::Load(int id)
 uint8_t Gui::FindCurrentPatternLength()
 {
 	uint8_t r = 0;
-	while ((int32_t)_work_sfx_ram[r].type & (int32_t)Gamebuino_Meta::Sound_FX_Wave::CONTINUE_FLAG)
+	while ((int32_t)_work_sfx_ram[r].continue_flag)
 	{
 		r++;
 	}
@@ -215,7 +216,7 @@ uint8_t Gui::FindCurrentToneId()
 {
 	uint32_t current_tone = currentFx()->period_start;
 	int index = 0;
-	while (current_tone / 256 < note_table[index]  && index < sizeof(note_table) / sizeof(note_table[0]))
+	while (current_tone < note_table[index]  && index < sizeof(note_table) / sizeof(note_table[0]))
 	{
 		index++;
 	}
@@ -229,13 +230,13 @@ uint8_t Gui::FindCurrentToneId()
 void Gui::ResetPattern(int id)
 {
 	Gamebuino_Meta::Sound_FX * fx = getFx(id);
-	Gamebuino_Meta::Sound_FX_Wave wave = fx->type;
+	uint8_t wave = fx->type;
 
 	fx->volume_start = getParamValue(UI::PARAM_VOLUME, wave).def;
 	fx->volume_sweep = getParamValue(UI::PARAM_VOLUME_ENV, wave).def;
 	fx->period_start = getParamValue(UI::PARAM_PERIOD, wave).def;
 	fx->period_sweep = getParamValue(UI::PARAM_PERIOD_ENV, wave).def;
-	fx->length = 50 * 441;
+	fx->length = 10;
 }
 
 void Gui::FixHeader(int id)
@@ -243,12 +244,12 @@ void Gui::FixHeader(int id)
 	if (id < _pattern_length - 1)
 	{
 		Gamebuino_Meta::Sound_FX * fx = getFx(id);
-		fx->type = (Gamebuino_Meta::Sound_FX_Wave) ((uint32_t) fx->type | (uint32_t) Gamebuino_Meta::Sound_FX_Wave::CONTINUE_FLAG);
+		fx->continue_flag = 1;
 	}
 	else if (id == _pattern_length - 1)
 	{
 		Gamebuino_Meta::Sound_FX * fx = getFx(id);
-		fx->type = (Gamebuino_Meta::Sound_FX_Wave) ((uint32_t) fx->type & ~(uint32_t) Gamebuino_Meta::Sound_FX_Wave::CONTINUE_FLAG);
+		fx->continue_flag = 0;
 	}
 }
 
@@ -260,18 +261,21 @@ void Gui::FixAllHeaders()
 	}
 }
 
-void Gui::OutputPattern(const Gamebuino_Meta::Sound_FX *fx, const char * name)
+void Gui::OutputPattern(const Gamebuino_Meta::Sound_FX *fx, uint16_t id)
 {
 	if (SerialUSB)
 	{
-		SerialUSB.print("//Put this in you .h file :\n");
+		char buffer[16];
+		sprintf(buffer, "sfx_%d", id);
+
+		SerialUSB.print("//Put this in your .h file :\n");
 		SerialUSB.print("extern const Gamebuino_Meta::Sound_FX ");
-		SerialUSB.print(name);
+		SerialUSB.print(buffer);
 		SerialUSB.print("[];\n\n");
 
-		SerialUSB.print("//Put this in you .cpp file :\n");
+		SerialUSB.print("//Put this in your .cpp file :\n");
 		SerialUSB.print("const Gamebuino_Meta::Sound_FX ");
-		SerialUSB.print(name);
+		SerialUSB.print(buffer);
 		SerialUSB.print("[] = {\n");
 		int i = 0;
 		const Gamebuino_Meta::Sound_FX * sfx = &fx[i];
@@ -280,7 +284,7 @@ void Gui::OutputPattern(const Gamebuino_Meta::Sound_FX *fx, const char * name)
 			OutputFX(sfx);
 			SerialUSB.print(",\n");
 			i++;
-		} while ((int32_t)sfx->type & (int32_t)Gamebuino_Meta::Sound_FX_Wave::CONTINUE_FLAG);
+		} while (sfx->continue_flag);
 
 		SerialUSB.print("};\n");
 	}
@@ -291,19 +295,27 @@ void Gui::OutputFX(const Gamebuino_Meta::Sound_FX * fx)
 	if (SerialUSB)
 	{
 		SerialUSB.print("\t{");
-		int id = (int32_t)fx->type & 0xff;
-		if ((int32_t)fx->type & (int32_t)Gamebuino_Meta::Sound_FX_Wave::CONTINUE_FLAG)
-		{
-			id += 2;
-		}
 
-		SerialUSB.print(_output_wave_names[id]);
+		SerialUSB.print(_output_wave_names[fx->type]);
 		
-		for (int i = 1; i < 6; i++)
-		{
-			SerialUSB.print(",");
-			SerialUSB.print(fx->params[i]);
-		}
+		SerialUSB.print(",");
+		SerialUSB.print(fx->continue_flag);
+
+		SerialUSB.print(",");
+		SerialUSB.print(fx->volume_start);
+
+		SerialUSB.print(",");
+		SerialUSB.print(fx->volume_sweep);
+
+		SerialUSB.print(",");
+		SerialUSB.print(fx->period_start);
+
+		SerialUSB.print(",");
+		SerialUSB.print(fx->period_sweep);
+
+		SerialUSB.print(",");
+		SerialUSB.print(fx->length);
+
 		SerialUSB.print("}");
 	}
 }
@@ -314,7 +326,7 @@ void Gui::Update()
 	gb.lights.clear(RED);
 	if (gb.buttons.pressed(BUTTON_B))
 	{
-		//gb.sound.fx(sfx_test);
+		gb.sound.fx(sfx_test);
 		//gb.sound.playOK();
 	}
 #else
@@ -326,12 +338,56 @@ void Gui::Update()
 	case State::MENU:
 		UpdateMenu();
 		break;
+	case State::LOAD:
+		UpdateChooseFile();
+		break;
 	default:
 		assert(false,"STATE IS NOT IMPLEMENTED");
 		break;
 	}
 	
 #endif // !BENCH
+}
+
+void Gui::UpdateChooseFile()
+{
+	if (gb.buttons.pressed(BUTTON_LEFT))
+	{
+		if (_temp_save_id > 0)
+		{
+			_temp_save_id--;
+		}
+		else
+		{
+			_temp_save_id = FILES_NUMBER - 1;
+		}
+	}
+
+	if (gb.buttons.pressed(BUTTON_RIGHT))
+	{
+		if (_temp_save_id < FILES_NUMBER-1)
+		{
+			_temp_save_id++;
+		}
+		else
+		{
+			_temp_save_id = 0;
+		}
+	}
+
+	if (gb.buttons.pressed(BUTTON_A))
+	{
+		Load(_temp_save_id);
+		PopState();
+		PopState();
+		DisplayNotification("FX  loaded");
+	}
+
+	if (gb.buttons.pressed(BUTTON_B))
+	{
+		PopState();
+	}
+
 }
 
 void Gui::UpdateMenu()
@@ -396,25 +452,48 @@ void Gui::UpdateMenu()
 			{
 				case 0: // Save
 					SaveCurrentPattern();
-					SaveAll();
+					DisplayNotification("FX Saved");
 					PopState();
 					break;
 				case 1: // Load
-					Load(_current_save_id);
-					PopState();
+					PushState(State::LOAD);
 					break;
 				case 2: // Export
-					OutputPattern(_work_sfx_ram, "test");
+					OutputPattern(_work_sfx_ram, _current_save_id);
 					PopState();
 					break;
 			}
 			break;
 		case Menu::EDIT:
+			switch (_current_menu_item)
+			{
+			case 0: // Copy
+				Copy();
+				DisplayNotification("Current FX Copied");
+				PopState();
+				break;
+			case 1: // Pase
+				Paste();
+				DisplayNotification("Current FX Copied");
+				PopState();
+				break;
+			case 2: // Clear
+				ResetPattern(_current_fx);
+				DisplayNotification("Current FX Cleared");
+				PopState();
+				break;
+			}
 			break;
 		default:
 			break;
 		}
 	}
+}
+
+void Gui::OpenLoadState()
+{
+	_temp_save_id = _current_save_id;
+	PushState(State::LOAD);
 }
 
 void Gui::UpdateParams()
@@ -475,33 +554,46 @@ void Gui::UpdateParams()
 		{
 		case Gui::UI::PARAM_WAVE:
 		{
-			currentFx()->type = (Gamebuino_Meta::Sound_FX_Wave) ((((uint32_t)(currentFx()->type) & 0xff) + dir + (uint32_t)(Gamebuino_Meta::Sound_FX_Wave::WAVE_COUNT)) % (uint32_t)(Gamebuino_Meta::Sound_FX_Wave::WAVE_COUNT));
+			currentFx()->type = (uint8_t) ((currentFx()->type + Gamebuino_Meta::Sound_FX_Wave::MAX + dir) % Gamebuino_Meta::Sound_FX_Wave::MAX);
 			ResetPattern(_current_fx);
 			FixHeader(_current_fx);
 			break;
 		}
 		case Gui::UI::PARAM_LENGTH:
 		{
-			int32_t & param = currentFx()->params[_current_index - (uint32_t)Gui::UI::PARAM_WAVE];
-			param = clamp(param + dir * 441 * scale, (int32_t)0, (int32_t)44100 * 100);
+			uint16_t & param = currentFx()->length;
+			param = clamp((int32_t) param + dir * scale, (int32_t)0, (int32_t) UINT16_MAX);
 		}
 		break;
 		case Gui::UI::PARAM_VOLUME:
+		{
+			const value & v = getParamValue(ui_param, currentFx()->type);
+			uint8_t & param = currentFx()->volume_start;
+			param = clamp((int32_t)param + dir * scale, (int32_t)0, (int32_t)UINT8_MAX);
+			break;
+		}
 		case Gui::UI::PARAM_VOLUME_ENV:
+		{
+			const value & v = getParamValue(ui_param, currentFx()->type);
+			int8_t & param = currentFx()->volume_sweep;
+			param = clamp((int32_t)param + dir * scale, (int32_t)INT8_MIN, (int32_t)INT8_MAX);
+			break;
+		}
 		case Gui::UI::PARAM_PERIOD_ENV:
 		{
 			const value & v = getParamValue(ui_param, currentFx()->type);
-			int32_t & param = currentFx()->params[_current_index - (uint32_t)Gui::UI::PARAM_WAVE];
-			param = clamp(param + dir * v.incr * scale, v.min, v.max);
+			int8_t & param = currentFx()->period_sweep;
+			param = clamp((int32_t)param + dir * scale, (int32_t)INT8_MIN, (int32_t)INT8_MAX);
+			break;
 		}
 		break;
 		case Gui::UI::PARAM_PERIOD:
 		{
 
-			if ((uint32_t)currentFx()->type == (uint32_t)(Gamebuino_Meta::Sound_FX_Wave::NOISE) & 0xff)
+			if (currentFx()->type == Gamebuino_Meta::Sound_FX_Wave::NOISE)
 			{
 				const value & v = getParamValue(ui_param, currentFx()->type);
-				int32_t & param = currentFx()->params[_current_index - (uint32_t)Gui::UI::PARAM_WAVE];
+				uint16_t & param = currentFx()->period_start;
 				param = clamp(param + dir * v.incr * scale, v.min, v.max);
 			}
 			else
@@ -516,7 +608,7 @@ void Gui::UpdateParams()
 					note_index += -dir * 12;
 				}
 				note_index = clamp(note_index, (uint8_t)25, (uint8_t)(sizeof(note_table) / sizeof(note_table[0])));
-				currentFx()->params[_current_index - (uint32_t)Gui::UI::PARAM_WAVE] = note_table[note_index] * 256;
+				currentFx()->period_start = note_table[note_index];
 			}
 			break;
 		}
@@ -538,16 +630,16 @@ void Gui::UpdateParams()
 			if (_select_fx_index == 0)
 			{
 				_pattern_length = max(1, (_pattern_length)-1);
+				if (_current_fx > _pattern_length - 1)
+				{
+					_current_fx = _pattern_length - 1;
+				}
 				FixAllHeaders();
 			}
 			else if (_select_fx_index == _pattern_length + 1)
 			{
 				_pattern_length = min(8, _pattern_length + 1);
 				_select_fx_index = _pattern_length + 1; // Move the cursor to follow the plus button
-				if (_current_fx > _pattern_length - 1)
-				{
-					_current_fx = _pattern_length - 1;
-				}
 				FixAllHeaders();
 			}
 			else // Select the fx
@@ -620,14 +712,19 @@ void Gui::DrawParamEntry(uint8_t index)
 		}
 	case Gui::UI::PARAM_LENGTH:
 		gb.display.setCursor(BAR_X, y);
-		gb.display.printf("%6d ms", 1000 * currentFx()->length/44100);
+		gb.display.printf("%5d ms", currentFx()->length * 20);
 		break;
 	case Gui::UI::PARAM_VOLUME:
+		DrawBar(BAR_X, y, currentFx()->volume_start, getParamValue(ui_param, currentFx()->type).min, getParamValue(ui_param, currentFx()->type).max, selected);
+		break;
 	case Gui::UI::PARAM_VOLUME_ENV:
+		DrawBar(BAR_X, y, currentFx()->volume_sweep, getParamValue(ui_param, currentFx()->type).min, getParamValue(ui_param, currentFx()->type).max, selected);
+		break;
 	case Gui::UI::PARAM_PERIOD:
+		DrawBar(BAR_X, y, currentFx()->period_start, getParamValue(ui_param, currentFx()->type).min, getParamValue(ui_param, currentFx()->type).max, selected);
+		break;
 	case Gui::UI::PARAM_PERIOD_ENV:
-		// Draw bar
-		DrawBar(BAR_X, y, currentFx()->params[index] , getParamValue(ui_param, currentFx()->type).min, getParamValue(ui_param, currentFx()->type).max, selected);
+		DrawBar(BAR_X, y, currentFx()->period_sweep, getParamValue(ui_param, currentFx()->type).min, getParamValue(ui_param, currentFx()->type).max, selected);
 		break;
 	default:
 		// Shouldn't happend
@@ -681,6 +778,9 @@ void Gui::Draw()
 	case State::MENU:
 		DrawMenu();
 		break;
+	case State::LOAD:
+		DrawChooseFile();
+		break;
 	default:
 		break;
 	}
@@ -692,6 +792,18 @@ void Gui::Draw()
 	gb.display.printf("%d\n", gb.getCpuLoad());
 	gb.display.println(gb.getFreeRam());
 #endif
+}
+
+void Gui::DrawChooseFile()
+{
+	gb.display.clear(DARKGRAY);
+	DrawMenuBar();
+
+	gb.display.setColor(GRAY);
+	gb.display.setCursor(2, 9);
+	gb.display.print("Choose file to load");
+	gb.display.setCursor(27, 16);
+	gb.display.printf("< %02d >", _temp_save_id);
 }
 
 void Gui::DrawParams()
@@ -718,6 +830,7 @@ void Gui::DrawParams()
 
 void Gui::DrawMenu()
 {
+	gb.display.clear(DARKGRAY);
 	DrawMenuBar();
 	DrawMenuItems();
 }
@@ -770,7 +883,7 @@ void Gui::DrawMenuItems()
 	{
 		if (i == _current_menu_item)
 		{
-			gb.display.setColor(DARKGRAY);
+			gb.display.setColor(BLACK);
 			gb.display.fillRect(1, i*STEP_Y + START_Y - 1, 78, STEP_Y+1);
 			gb.display.setColor(WHITE);
 		}
@@ -857,15 +970,41 @@ void Gui::DrawPatternSelect()
 
 void Gui::DrawStatusBar()
 {
-	const int VALUE_X = 37;
+	const int VALUE_X = 37+12;
 	const int VALUE_Y = 58;
 
 	if (_current_index < (uint32_t)Gui::UI::PARAMS_END)
 	{
 		int index = _current_index - (uint32_t)(Gui::UI::PARAMS_BEGIN);
+
+		int32_t value = 0;
+		switch ((Gui::UI)_current_index)
+		{
+		case Gui::UI::PARAM_WAVE:
+			value = currentFx()->type;
+			break;
+		case Gui::UI::PARAM_VOLUME:
+			value = currentFx()->volume_start;
+			break;
+		case Gui::UI::PARAM_VOLUME_ENV:
+			value = currentFx()->volume_sweep;
+			break;
+		case Gui::UI::PARAM_PERIOD:
+			value = currentFx()->period_start;
+			break;
+		case Gui::UI::PARAM_PERIOD_ENV:
+			value = currentFx()->period_sweep;
+			break;
+		case Gui::UI::PARAM_LENGTH:
+			value = currentFx()->length;
+			break;
+
+		default:
+			break;
+		}
 		gb.display.setColor(GRAY);
 		gb.display.setCursor(VALUE_X, VALUE_Y);
-		gb.display.printf("v:%8d", currentFx()->params[index]);
+		gb.display.printf("v:%5d", value);
 	}
 	else if (_current_index == (uint32_t)Gui::UI::PATTERN_SELECT)
 	{
@@ -891,7 +1030,7 @@ void Gui::DisplayNotification(const char * message, int16_t time)
 
 void Gui::DrawNotification()
 {
-	const int START_X = 0;
+	const int START_X = 1;
 	const int START_Y = 58;
 
 
@@ -899,9 +1038,9 @@ void Gui::DrawNotification()
 	{
 		_notification_timer--;
 
-		gb.display.setColor(DARKGRAY);
+		gb.display.setColor(BLACK);
 		gb.display.fillRect(START_X, START_Y - 1, 80, 7);
-		gb.display.setColor(GRAY);
+		gb.display.setColor(WHITE);
 		gb.display.setCursor(START_X, START_Y);
 		gb.display.printf(_notification_string);
 	}
