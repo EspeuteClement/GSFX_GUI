@@ -308,10 +308,10 @@ void Gui::OutputFX(const Gamebuino_Meta::Sound_FX * fx)
 		SerialUSB.print(fx->volume_sweep);
 
 		SerialUSB.print(",");
-		SerialUSB.print(fx->period_start);
+		SerialUSB.print(fx->period_sweep);
 
 		SerialUSB.print(",");
-		SerialUSB.print(fx->period_sweep);
+		SerialUSB.print(fx->period_start);
 
 		SerialUSB.print(",");
 		SerialUSB.print(fx->length);

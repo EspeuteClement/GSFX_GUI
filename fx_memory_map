@@ -1,0 +1,10 @@
+byte 0:
+    bits 0-6 : wave type
+    bit 7 : continue flag
+byte 1 : volume start
+byte 2 : volume sweep
+byte 3 : low of period
+byte 4 : high of period
+byte 5 : freq sweep
+byte 6 : length low
+byt 7  : length high

@@ -5,6 +5,16 @@ This tool was designed as an easy and interactive method for creating sound FX d
 ## Terms
 - _FX_ : A series of sounds that you can play in your game
 - _Sound_ : The smallest part of FX. Each sound has a given *Length*, *Volume*, *Period* (for sound pitching) and a *Waveform*. Volume and Period can be altered by sliding up or down the parameter through time
+
+## How to create Sounds
+
+### Controls :
+UP/DOWN : Navigate
+LEFT/RIGHT : Change value / Navigate
+A : Hold to change value faster / Validate
+B : Play your sound / Cancel
+Menu : Open Menu Bar
+
 ## How to play your sound in your own program
 To use the sound you created, you need to export export them, to do that, follow these steps :
 1. Connect your Gamebuino to your PC via an USB cable
@@ -46,6 +56,6 @@ Then, you just need to call `gb.sound.fx(sfx_0);` when you want your sound to pl
     const Gamebuino_Meta::Sound_FX sfx_2[] = { ... };
     ...
     ```
-    + If you want ti play a FX, simply include your `.h` file like so `#include "sfx.h"` and call `gb.sound.fx(sfx_0);`
+    + If you want to play a FX, simply include your `.h` file like so `#include "sfx.h"` and call `gb.sound.fx(sfx_0);`
 
 
